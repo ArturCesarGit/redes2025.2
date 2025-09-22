@@ -8,7 +8,7 @@ def iniciar_cliente():
 
     try:
         cliente_socket.connect((HOST, PORT))
-        print(f"Conectado com sucesso ao servidor em {HOST}:{PORT}")
+        print(f"Conectado com sucesso ao servidor em {HOST}:{PORT}\n")
 
         modo_operacao = input("Digite o modo de operação: ")
         tamanho_maximo = int(input("Digite o tamanho máximo do texto (min. 30): "))
@@ -20,7 +20,7 @@ def iniciar_cliente():
         handshake_string = f"{modo_operacao}[.]{str(tamanho_maximo)}"
         
         cliente_socket.sendall(handshake_string.encode('utf-8'))
-        print("\nDados do handshake enviados ao servidor.\n")
+        print("\nDados do handshake enviados ao servidor.")
         
         confirmacao = cliente_socket.recv(1024)
         print(f"Resposta do Servidor: {confirmacao.decode('utf-8')}")
@@ -32,7 +32,7 @@ def iniciar_cliente():
         
     finally:
         cliente_socket.close()
-        print("Conexão com o servidor fechada.")
+        print("\nConexão com o servidor fechada.")
 
 if __name__ == "__main__":
     iniciar_cliente()
