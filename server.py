@@ -9,13 +9,13 @@ def iniciar_servidor():
 
     servidor_socket.bind((HOST, PORT))
     servidor_socket.listen()
-    print(f"Servidor aguardando conexão em {HOST}:{PORT}")
+    print(f"[SERVER] aguardando conexão em {HOST}:{PORT}")
 
     try:
         conexao_cliente, endereco_cliente = servidor_socket.accept()
-        print(f"Cliente conectado pelo endereço: {endereco_cliente}")
+        print(f"[SERVER] Cliente conectado pelo endereço: {endereco_cliente}")
         
-        dados_recebidos = conexao_cliente.recv(1024)        
+        dados_recebidos = conexao_cliente.recv(1024)
         handshake_string = dados_recebidos.decode('utf-8')
         partes = handshake_string.split('[.]')
         
@@ -24,20 +24,17 @@ def iniciar_servidor():
         
         print("\nHandshake Recebido!")
         print(f"Modo de Operação: {modo_operacao}")
-        print(f"Tamanho Máximo do texto: {tamanho_maximo}\n")
+        print(f"Tamanho Máximo do texto: {tamanho_maximo}")
         
-        conexao_cliente.sendall(b'Handshake ok!')
+        conexao_cliente.sendall(b'HANDSHAKE_OK')
 
     except Exception as e:
-        print(f"erro: {e}")
+        print(f"Erro: {e}")
         
     finally:
         if conexao_cliente:
             conexao_cliente.close()
-            print("Conexão com o cliente fechada.")
-            
-        servidor_socket.close()
-        print("Socket do servidor fechado.")
+            print("\n[SERVER] Conexão fechada")
 
 if __name__ == "__main__":
     iniciar_servidor()

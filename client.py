@@ -8,31 +8,32 @@ def iniciar_cliente():
 
     try:
         cliente_socket.connect((HOST, PORT))
-        print(f"Conectado com sucesso ao servidor em {HOST}:{PORT}\n")
+        print(f"[CLIENT] Conectado com sucesso ao servidor em {HOST}:{PORT}\n")
 
-        modo_operacao = input("Digite o modo de operação: ")
-        tamanho_maximo = int(input("Digite o tamanho máximo do texto (min. 30): "))
+        modo_operacao = input("[CLIENT] Digite o modo de operação: ")
+        tamanho_maximo = int(input("[CLIENT] Digite o tamanho máximo do texto (min. 30): "))
 
         if tamanho_maximo < 30:
-            print(f"\nerro: O valor mínimo deve ser 30.")
+            print(f"\nErro: O valor mínimo deve ser 30")
             return
 
-        handshake_string = f"{modo_operacao}[.]{str(tamanho_maximo)}"
+        handshake_message = f"{modo_operacao}[.]{str(tamanho_maximo)}".encode('utf-8')
         
-        cliente_socket.sendall(handshake_string.encode('utf-8'))
-        print("\nDados do handshake enviados ao servidor.")
+        cliente_socket.sendall(handshake_message)
+        print("\n[CLIENT] Dados do handshake enviados ao servidor")
         
         confirmacao = cliente_socket.recv(1024)
-        print(f"Resposta do Servidor: {confirmacao.decode('utf-8')}")
+        print(f"[SERVER] Resposta do Servidor: {confirmacao.decode('utf-8')}")
 
     except ConnectionRefusedError:
-        print("Não foi possível conectar.")
+        print("[CLIENT] Não foi possível conectar")
+
     except Exception as e:
-        print(f"erro: {e}")
+        print(f"\nErro: {e}")
         
     finally:
         cliente_socket.close()
-        print("\nConexão com o servidor fechada.")
+        print("\n[CLIENT] Conexão fechada")
 
 if __name__ == "__main__":
     iniciar_cliente()
