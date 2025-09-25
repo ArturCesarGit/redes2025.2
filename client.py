@@ -2,7 +2,7 @@ import socket
 
 HOST = "127.0.0.1"
 PORT = 7070
-TAMANHO_PACOTE = 4
+TAMANHO_MAX_PACOTE = 4
 
 def iniciar_cliente():
     cliente_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -11,14 +11,17 @@ def iniciar_cliente():
         cliente_socket.connect((HOST, PORT))
         print(f"[CLIENT] Conectado com sucesso ao servidor em {HOST}:{PORT}\n")
 
-        modo_operacao = input("[CLIENT] Digite o modo de operação: ")
-        tamanho_maximo = int(input("[CLIENT] Digite o tamanho máximo do texto (min. 30): "))
+        while True:
+            protocolo_operacao = input("[CLIENT] Digite o protocolo (GBN ou RS): ").upper()
+            if protocolo_operacao in ["GBN", "RS"]:
+                break
 
-        if tamanho_maximo < 30:
-            print(f"\nErro: O valor mínimo deve ser 30")
-            return
+        while True:
+            tamanho_maximo_mensagem = int(input("[CLIENT] Digite o tamanho máximo do texto (min. 30): "))
+            if tamanho_maximo_mensagem >= 30:
+                break
 
-        handshake_message = f"{modo_operacao}[.]{str(tamanho_maximo)}".encode('utf-8')
+        handshake_message = f"{protocolo_operacao}[.]{TAMANHO_MAX_PACOTE}[.]{str(tamanho_maximo_mensagem)}".encode('utf-8')
         
         cliente_socket.sendall(handshake_message)
         print("\n[CLIENT] Dados do handshake enviados ao servidor")
@@ -26,11 +29,15 @@ def iniciar_cliente():
         confirmacao = cliente_socket.recv(1024)
         print(f"[SERVER] Resposta do Servidor: {confirmacao.decode('utf-8')}")
 
-        mensagem_original = input("\n[CLIENT] Digite a mensagem a ser enviada: ")
+        mensagem_original = input(f"\n[CLIENT] Digite a mensagem a ser enviada (limite de {tamanho_maximo_mensagem} caracteres): ")
+
+        if len(mensagem_original) > tamanho_maximo_mensagem:
+            print(f"\n[CLIENT] ERRO: A mensagem possui {len(mensagem_original)} caracteres, excedendo o limite de {tamanho_maximo_mensagem} caracteres definido.")
+            return 
 
         pacotes_a_enviar = []
-        for i in range(0, len(mensagem_original), TAMANHO_PACOTE):
-            pacotes_a_enviar.append(mensagem_original[i:i+TAMANHO_PACOTE])
+        for i in range(0, len(mensagem_original), TAMANHO_MAX_PACOTE):
+            pacotes_a_enviar.append(mensagem_original[i:i+TAMANHO_MAX_PACOTE])
 
         total_pacotes = len(pacotes_a_enviar)
         print(f"\n[CLIENT] Mensagem será dividida em {total_pacotes} pacotes.")

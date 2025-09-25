@@ -3,6 +3,34 @@ import socket
 HOST = "127.0.0.1" 
 PORT = 7070
 
+def exibir_handshake(msn: bytes):
+    handshake_string = msn.decode('utf-8')
+    partes = handshake_string.split('[.]')
+    
+    modo_operacao = partes[0]
+    tamanho_pacotes = int(partes[1])
+    tamanho_mensagem = int(partes[2])
+    
+    print("\n" + "="*50)
+    print("HANDSHAKE RECEBIDO".center(50))
+    print("="*50)
+    print(f"  - Modo de Operacao: {modo_operacao}")
+    print(f"  - Tamanho Maximo dos Pacotes: {tamanho_pacotes}")
+    print(f"  - Tamanho Total da Mensagem: {tamanho_mensagem}")
+    print("="*50 + "\n")
+
+def exibir_metadados_pacote(pacote: bytes):
+    pacote_string = pacote.decode('utf-8')
+    partes = pacote_string.split('[.]')
+
+    num_pacote = int(partes[0])
+    flag_fim = int(partes[1])
+    carga_util = partes[2]
+
+    print(f"> Pacote Nº {num_pacote} recebido:")
+    print(f"  - Flag de Fim: {flag_fim}")
+    print(f"  - Carga Util: '{carga_util}'\n")
+
 def iniciar_servidor():
     servidor_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     conexao_cliente = None
@@ -16,32 +44,18 @@ def iniciar_servidor():
         print(f"[SERVER] Cliente conectado pelo endereço: {endereco_cliente}")
         
         handshake_recebido = conexao_cliente.recv(1024)
-        handshake_string = handshake_recebido.decode('utf-8')
-        partes = handshake_string.split('[.]')
-        
-        modo_operacao = partes[0]
-        tamanho_maximo = int(partes[1])
-        
-        print("\nHandshake Recebido!")
-        print(f"Modo de Operação: {modo_operacao}")
-        print(f"Tamanho Máximo do texto: {tamanho_maximo}")
-        
+        exibir_handshake(handshake_recebido)
         conexao_cliente.sendall(b'HANDSHAKE_OK')
 
-        print("\n[SERVER] Aguardando recebimento de pacotes...")
+        print("[SERVER] Aguardando recebimento de pacotes...")
         mensagem_completa = ""
         
         while True:
             pacote_recebido = conexao_cliente.recv(1024)
-            pacote_string = pacote_recebido.decode('utf-8')
-            
-            num_pacote, flag_fim, carga_util = pacote_string.split('[.]', 2)
+            exibir_metadados_pacote(pacote_recebido)
 
-            print(f"\n[SERVER] Pacote recebido:")
-            print(f"Número do Pacote: {num_pacote}")
-            print(f"Flag Fim: {flag_fim}")
-            print(f"Carga Útil: '{carga_util}'")
-            
+            num_pacote, flag_fim, carga_util = pacote_recebido.decode('utf-8').split('[.]')
+
             mensagem_completa += carga_util
             
             ack_message = f"ACK_PACOTE_{num_pacote}".encode('utf-8')
