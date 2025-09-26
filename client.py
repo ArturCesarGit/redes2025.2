@@ -4,6 +4,28 @@ HOST = "127.0.0.1"
 PORT = 7070
 TAMANHO_MAX_PACOTE = 4
 
+def enviar_pacotes(socket: socket, mensagem: str):
+    pacotes = []
+    for i in range(0, len(mensagem), TAMANHO_MAX_PACOTE):
+        pacotes.append(mensagem[i:i+TAMANHO_MAX_PACOTE])
+
+    total_pacotes = len(pacotes)
+    print(f"\n> [CLIENT] Preparando envio de {total_pacotes} pacotes...")
+
+    for num_pacote, carga_util in enumerate(pacotes):
+        flag_fim = '1' if (num_pacote == total_pacotes - 1) else '0'
+        pacote_formatado = f"{num_pacote}[.]{flag_fim}[.]{carga_util}".encode('utf-8')
+
+        socket.sendall(pacote_formatado)
+        print(f"> Pacote Nº {num_pacote} enviado:")
+        print(f"   - Flag de Fim: {flag_fim}")
+        print(f"   - Carga Útil: '{carga_util}'")
+
+        ack_recebido = socket.recv(1024)
+        print(f"[SERVER] Mensagem: {ack_recebido.decode('utf-8')}\n")
+    
+    print(f"\n[CLIENT] Transmissão concluída. Todos os pacotes foram enviados e confirmados.\n")
+
 def iniciar_cliente():
     cliente_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
@@ -29,31 +51,12 @@ def iniciar_cliente():
         confirmacao = cliente_socket.recv(1024)
         print(f"[SERVER] Resposta do Servidor: {confirmacao.decode('utf-8')}")
 
-        mensagem_original = input(f"\n[CLIENT] Digite a mensagem a ser enviada (limite de {tamanho_maximo_mensagem} caracteres): ")
+        while True:
+            mensagem_original = input(f"\n[CLIENT] Digite a mensagem a ser enviada (limite de {tamanho_maximo_mensagem} caracteres): ")
+            if len(mensagem_original) <= tamanho_maximo_mensagem:
+                break 
 
-        if len(mensagem_original) > tamanho_maximo_mensagem:
-            print(f"\n[CLIENT] ERRO: A mensagem possui {len(mensagem_original)} caracteres, excedendo o limite de {tamanho_maximo_mensagem} caracteres definido.")
-            return 
-
-        pacotes_a_enviar = []
-        for i in range(0, len(mensagem_original), TAMANHO_MAX_PACOTE):
-            pacotes_a_enviar.append(mensagem_original[i:i+TAMANHO_MAX_PACOTE])
-
-        total_pacotes = len(pacotes_a_enviar)
-        print(f"\n[CLIENT] Mensagem será dividida em {total_pacotes} pacotes.")
-
-        for i, pacote_payload in enumerate(pacotes_a_enviar):
-            
-            flag_fim = '1' if (i == total_pacotes - 1) else '0'
-            pacote_formatado = f"{i}[.]{flag_fim}[.]{pacote_payload}".encode('utf-8')
-            
-            cliente_socket.sendall(pacote_formatado)
-            print(f"\n[CLIENT] Pacote {i} enviado -> Payload: '{pacote_payload}'")
-
-            ack_recebido = cliente_socket.recv(1024)
-            print(f"[SERVER] Confirmação recebida: {ack_recebido.decode('utf-8')}")
-            
-        print("\n[CLIENT] Todos os pacotes foram enviados e confirmados.")
+        enviar_pacotes(cliente_socket, mensagem_original)
 
     except ConnectionRefusedError:
         print("[CLIENT] Não foi possível conectar")
