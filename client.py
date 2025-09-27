@@ -16,7 +16,7 @@ cipher_suite = Fernet(KEY)
 base = 0
 next_seq_num = 0
 window_size = 0
-lock = threading.Lock()
+lock = threading.RLock()
 timer = None
 pacotes_a_enviar = []
 total_pacotes = 0
@@ -178,7 +178,7 @@ def receber_acks_SR(socket: socket.socket):
             if not ack_str: continue
             
             ack_num = int(ack_str.strip())
-            print(f"[SERVER] Servidor confirmou o pacote Nº {ack_num}.")
+            print(f"\n[SERVER] Servidor confirmou o pacote Nº {ack_num}.")
 
             with lock:
                 if base <= ack_num < next_seq_num and status_pacotes.get(ack_num) == 'enviado':
@@ -237,7 +237,7 @@ def enviar_mensagem_SR(socket: socket.socket, mensagem: str, modo_erro: int, cha
 
                 socket.sendall(pacote_a_enviar)
                 if not deve_falhar:
-                    print(f"> Pacote Nº {next_seq_num} enviado.\n")
+                    print(f"\n> Pacote Nº {next_seq_num} enviado.")
                 
                 status_pacotes[next_seq_num] = 'enviado'
                 tempos_envio[next_seq_num] = time.time()

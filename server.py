@@ -122,7 +122,7 @@ def processar_mensagens_SR(conexao_cliente: socket.socket):
             checksum_calculado = calcular_checksum(carga_util_b64)
 
             if checksum_calculado != checksum_recebido:
-                print(f"[SERVER] ERRO: Checksum inválido para o pacote {num_pacote}. Pacote descartado.\n")
+                print(f"\n[SERVER] ERRO: Checksum inválido para o pacote {num_pacote}. Pacote descartado.\n")
                 continue
 
             carga_util_encrypted = base64.b64decode(carga_util_b64.encode('utf-8'))
@@ -138,7 +138,7 @@ def processar_mensagens_SR(conexao_cliente: socket.socket):
             if rcv_base <= num_pacote < rcv_base + WINDOW_SIZE_SR:
                 if num_pacote not in pacotes_em_buffer:
                     pacotes_em_buffer[num_pacote] = (carga_util, flag_fim == '1')
-                    print(f"[SERVER] Pacote {num_pacote} armazenado no buffer.")
+                    print(f"\n[SERVER] Pacote {num_pacote} armazenado no buffer.")
 
             while rcv_base in pacotes_em_buffer:
                 dados, eh_ultimo = pacotes_em_buffer.pop(rcv_base)
