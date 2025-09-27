@@ -4,57 +4,138 @@ HOST = "127.0.0.1"
 PORT = 7070
 WINDOW_SIZE = 5
 
-def calcular_checksum(dados: str):
-    return sum(ord(c) for c in dados)
+def calcular_checksum(dados: str) -> int:
+    MOD = 2**32
+    soma = 0
+    for i, c in enumerate(dados):
+        soma = (soma + (i + 1) * ord(c)) % MOD
+    return soma
 
 def processar_mensagens_GBN(conexao_cliente: socket.socket):
     print("[SERVER] Iniciando processamento com protocolo GBN...\n")
     mensagem_completa = ""
     num_sequencia_esperado = 0
-    
-    while True:
-        pacote_recebido = conexao_cliente.recv(1024)
-        if not pacote_recebido:
-            print("[SERVER] Cliente desconectado.")
-            break
 
-        partes = pacote_recebido.decode('utf-8').split('[.]')
-        num_pacote = int(partes[0])
-        checksum_recebido = int(partes[1])
-        flag_fim = partes[2]
-        carga_util = partes[3]
+    buffer_recebimento = ""
+    DELIMITADOR = "|||"
+    transmissao_concluida = False
 
-        print(f"> Pacote Nº {num_pacote} recebido:")
-        print(f"  - Checksum Recebido: {checksum_recebido}")
-        print(f"  - Flag de Fim: {flag_fim}")
-        print(f"  - Carga Util: '{carga_util}'")
-
-        checksum_calculado = calcular_checksum(carga_util)
-
-        if (num_pacote == num_sequencia_esperado) and (checksum_calculado == checksum_recebido):
-            print(f"\n[SERVER] Pacote {num_pacote} OK. Enviando ACK_{num_pacote}.\n")
-            mensagem_completa += carga_util
-            conexao_cliente.sendall(f"ACK_{num_pacote}".encode('utf-8'))
-            num_sequencia_esperado += 1
-            
-            if flag_fim == '1':
-                print("[SERVER] Flag de fim recebida. Transmissão concluída.")
-                break
+    while not transmissao_concluida:
+        dados_recebidos = conexao_cliente.recv(1024)
+        if not dados_recebidos: break
         
-        else:
-            if checksum_calculado != checksum_recebido:
-                print(f"[SERVER] ERRO: Checksum inválido para o pacote {num_pacote}. Esperado: {checksum_calculado}, Recebido: {checksum_recebido}.")
-            else:
-                print(f"[SERVER] ERRO: Pacote fora de ordem. Esperado: {num_sequencia_esperado}, Recebido: {num_pacote}.")
+        buffer_recebimento += dados_recebidos.decode('utf-8')
 
-            ack_anterior = num_sequencia_esperado - 1
-            if ack_anterior >= 0:
-                print(f"[SERVER] Descartando pacote {num_pacote} e reenviando ACK_{ack_anterior}.")
-                conexao_cliente.sendall(f"ACK_{ack_anterior}".encode('utf-8'))
+        while DELIMITADOR in buffer_recebimento:
+            pacote_completo, buffer_recebimento = buffer_recebimento.split(DELIMITADOR, 1)
+
+            if not pacote_completo: continue
+            
+            partes = pacote_completo.split('[.]')
+            if len(partes) != 4: continue
+
+            num_pacote = int(partes[0])
+            checksum_recebido = int(partes[1])
+            flag_fim = partes[2]
+            carga_util = partes[3]
+
+            print(f"> Pacote Nº {num_pacote} recebido:")
+            print(f"  - Checksum Recebido: {checksum_recebido}")
+            print(f"  - Flag de Fim: {flag_fim}")
+            print(f"  - Carga Util: '{carga_util}'")
+
+            checksum_calculado = calcular_checksum(carga_util)
+
+            if (num_pacote == num_sequencia_esperado) and (checksum_calculado == checksum_recebido):
+                print(f"\n[SERVER] Pacote {num_pacote} OK. Enviando ACK_{num_pacote}.\n")
+                mensagem_completa += carga_util
+                conexao_cliente.sendall(f"ACK_{num_pacote}".encode('utf-8'))
+                num_sequencia_esperado += 1
+                
+                if flag_fim == '1':
+                    print("[SERVER] Flag de fim recebida. Transmissão concluída.")
+                    transmissao_concluida = True
+                    break
+            
             else:
-                print(f"[SERVER] Descartando pacote {num_pacote}.")
+                if checksum_calculado != checksum_recebido:
+                    print(f"[SERVER] ERRO: Checksum inválido para o pacote {num_pacote}. Esperado: {checksum_calculado}, Recebido: {checksum_recebido}.")
+                else:
+                    print(f"[SERVER] ERRO: Pacote fora de ordem. Esperado: {num_sequencia_esperado}, Recebido: {num_pacote}.")
+
+                ack_anterior = num_sequencia_esperado - 1
+                if ack_anterior >= 0:
+                    print(f"[SERVER] Descartando pacote {num_pacote} e reenviando ACK_{ack_anterior}.")
+                    conexao_cliente.sendall(f"ACK_{ack_anterior}".encode('utf-8'))
+                else:
+                    print(f"[SERVER] Descartando pacote {num_pacote}.")
     
     print(f"\n[SERVER] MENSAGEM COMPLETA (GBN): {mensagem_completa}")
+
+def processar_mensagens_SR(conexao_cliente: socket.socket):
+    print("[SERVER] Iniciando processamento com protocolo SR...\n")
+    mensagem_completa = ""
+    WINDOW_SIZE_SR = 5
+    rcv_base = 0
+    pacotes_em_buffer = {}
+
+    buffer_recebimento = ""
+    DELIMITADOR = "|||"
+    transmissao_concluida = False
+
+    while not transmissao_concluida:
+        dados_recebidos = conexao_cliente.recv(1024)
+        if not dados_recebidos: break
+        
+        buffer_recebimento += dados_recebidos.decode('utf-8')
+
+        while DELIMITADOR in buffer_recebimento:
+            pacote_completo, buffer_recebimento = buffer_recebimento.split(DELIMITADOR, 1)
+
+            if not pacote_completo: continue
+
+            partes = pacote_completo.split('[.]')
+            if len(partes) != 4: continue
+
+            num_pacote = int(partes[0])
+            checksum_recebido = int(partes[1])
+            flag_fim = partes[2]
+            carga_util = partes[3]
+
+            print(f"> Pacote Nº {num_pacote} recebido:")
+            print(f"  - Checksum Recebido: {checksum_recebido}")
+            print(f"  - Flag de Fim: {flag_fim}")
+            print(f"  - Carga Util: '{carga_util}'\n")
+
+            checksum_calculado = calcular_checksum(carga_util)
+            if checksum_calculado != checksum_recebido:
+                print(f"[SERVER] ERRO: Checksum inválido para o pacote {num_pacote}. Pacote descartado.\n")
+                continue
+
+            if rcv_base - WINDOW_SIZE_SR <= num_pacote < rcv_base + WINDOW_SIZE_SR:
+                print(f"[SERVER] Pacote {num_pacote} OK. Enviando ACK_{num_pacote}.")
+                conexao_cliente.sendall(f"ACK_{num_pacote}".encode('utf-8'))
+
+            if rcv_base <= num_pacote < rcv_base + WINDOW_SIZE_SR:
+                if num_pacote not in pacotes_em_buffer:
+                    pacotes_em_buffer[num_pacote] = (carga_util, flag_fim == '1')
+                    print(f"[SERVER] Pacote {num_pacote} armazenado no buffer.")
+
+            while rcv_base in pacotes_em_buffer:
+                dados, eh_ultimo = pacotes_em_buffer.pop(rcv_base)
+                mensagem_completa += dados
+                print(f"[SERVER] Pacote {rcv_base} entregue à aplicação. Janela avança.\n")
+                rcv_base += 1
+                
+                if eh_ultimo:
+                    print("[SERVER] Flag de fim recebida. Transmissão concluída.")
+                    transmissao_concluida = True
+                    break 
+            
+            if transmissao_concluida:
+                break
+
+    print(f"\n[SERVER] MENSAGEM COMPLETA (SR): {mensagem_completa}")
 
 def iniciar_servidor():
     servidor_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -90,11 +171,8 @@ def iniciar_servidor():
 
         if protocolo_operacao == "GBN":
             processar_mensagens_GBN(conexao_cliente)
-        #elif protocolo_operacao == "SR":
-        #   processar_mensagens_SR(conexao_cliente)
-
-    except Exception as e:
-        print(f"Erro: {e}")
+        elif protocolo_operacao == "SR":
+            processar_mensagens_SR(conexao_cliente)
         
     finally:
         if conexao_cliente:

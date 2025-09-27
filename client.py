@@ -5,7 +5,7 @@ import time
 HOST = "127.0.0.1"
 PORT = 7070
 TAMANHO_MAX_PACOTE = 4
-TIMEOUT = 2
+TIMEOUT = 1
 
 base = 0
 next_seq_num = 0
@@ -15,77 +15,61 @@ timer = None
 pacotes_a_enviar = []
 total_pacotes = 0
 cliente_socket: socket.socket = None
+status_pacotes = {}
+tempos_envio = {}
 
 def calcular_checksum(dados: str) -> int:
-    return sum(ord(c) for c in dados)
+    MOD = 2**32
+    soma = 0
+    for i, c in enumerate(dados):
+        soma = (soma + (i + 1) * ord(c)) % MOD
+    return soma
 
-def iniciar_timer():
+def iniciar_timer_GBN():
     global timer
     if timer:
         timer.cancel()
-    timer = threading.Timer(TIMEOUT, retransmitir)
+    timer = threading.Timer(TIMEOUT, retransmitir_GBN)
     timer.start()
 
-def retransmitir():
+def retransmitir_GBN():
     global timer
     with lock:
-        print("\n" + "*"*50)
-        print(f"[TIMEOUT] Estourou o tempo! Retransmitindo a janela a partir do pacote {base}.")
-        print("*"*50 + "\n")
+        print(f"\n[TIMEOUT] Estourou o tempo! Retransmitindo a janela a partir do pacote {base}.")
 
         for i in range(base, next_seq_num):
             pacote = pacotes_a_enviar[i]
             cliente_socket.sendall(pacote)
             print(f"> Pacote Nº {i} RETRANSMITIDO.")
 
-        iniciar_timer()
+        iniciar_timer_GBN()
 
-def receber_acks(socket: socket.socket):
+def receber_acks_GBN(socket: socket.socket):
     global base, timer
     
-    buffer = "" 
     while base < total_pacotes:
-        try:
-            dados_recebidos = socket.recv(1024).decode('utf-8')
-            if not dados_recebidos:
-                break
+        dados_recebidos = socket.recv(1024).decode('utf-8')
+        if not dados_recebidos: break
+
+        acks_agrupados = dados_recebidos.split('ACK_')
+
+        for ack_str in acks_agrupados:
+            if not ack_str: continue
             
-            buffer += dados_recebidos
+            ack_num = int(ack_str)
+            print(f"\n[CLIENT] Servidor confirmou o pacote Nº {ack_num}.")
+            
+            with lock:
+                if ack_num + 1 > base:
+                    base = ack_num + 1
 
-            while 'ACK_' in buffer:
-                try:
-                    start_index = buffer.find('ACK_')
-                    end_index = buffer.find('ACK_', start_index + 1)
-
-                    if end_index == -1:
-                        ack_completo = buffer
-                        buffer = ""
-                    else:
-                        ack_completo = buffer[start_index:end_index]
-                        buffer = buffer[end_index:]
-
-                    ack_num_str = ack_completo.split('_')[1]
-                    ack_num = int(ack_num_str)
-
-                    print(f"[ACK Recebido] Servidor confirmou o pacote Nº {ack_num}.")
-                
-                    with lock:
-                        if ack_num + 1 > base:
-                            base = ack_num + 1
-
-                        if base == next_seq_num:
-                            if timer:
-                                timer.cancel()
-                            print(f"  - Janela limpa. Base = {base}. Timer parado.")
-                        else:
-                            print(f"  - Janela deslizou. Nova base = {base}. Reiniciando timer.")
-                            iniciar_timer()
-                
-                except (ValueError, IndexError):
-                    break
-        
-        except ConnectionAbortedError:
-            break
+                if base == next_seq_num:
+                    if timer:
+                        timer.cancel()
+                    print(f"[CLIENT] Janela limpa. Base = {base}. Timer parado.")
+                else:
+                    print(f"[CLIENT] Janela deslizou. Nova base = {base}. Reiniciando timer.")
+                    iniciar_timer_GBN() 
 
 def enviar_mensagem_GBN(socket: socket.socket, mensagem: str):
     global next_seq_num, base, pacotes_a_enviar, total_pacotes
@@ -99,13 +83,12 @@ def enviar_mensagem_GBN(socket: socket.socket, mensagem: str):
     for num_pacote, carga_util in enumerate(cargas_uteis):
         flag_fim = '1' if (num_pacote == total_pacotes - 1) else '0'
         checksum = calcular_checksum(carga_util)
-        pacote = f"{num_pacote}[.]{checksum}[.]{flag_fim}[.]{carga_util}".encode('utf-8')
+        pacote = f"{num_pacote}[.]{checksum}[.]{flag_fim}[.]{carga_util}|||".encode('utf-8')
         pacotes_a_enviar.append(pacote)
     
-    print(f"\n> [CLIENT] Mensagem dividida em {total_pacotes} pacotes.")
+    print(f"\n[CLIENT] Mensagem dividida em {total_pacotes} pacotes.")
 
-    ack_thread = threading.Thread(target=receber_acks, args=(socket,))
-    ack_thread.daemon = True
+    ack_thread = threading.Thread(target=receber_acks_GBN, args=(socket,), daemon=True)
     ack_thread.start()
 
     while base < total_pacotes:
@@ -114,14 +97,95 @@ def enviar_mensagem_GBN(socket: socket.socket, mensagem: str):
                 pacote_a_enviar = pacotes_a_enviar[next_seq_num]
                 
                 socket.sendall(pacote_a_enviar)
-                time.sleep(0.02)
-                print(f"> Pacote Nº {next_seq_num} enviado.")
+                print(f"\n> Pacote Nº {next_seq_num} enviado.")
                 
                 if base == next_seq_num:
-                    iniciar_timer()
+                    iniciar_timer_GBN()
                 
                 next_seq_num += 1
-        
+        time.sleep(0.05)
+    
+    print(f"\n[CLIENT] Transmissão concluída. Todos os pacotes foram confirmados.")
+    ack_thread.join(timeout=1)
+
+def retransmitir_SR(num_pacote):
+    with lock:
+        if status_pacotes.get(num_pacote) == 'enviado':
+            print(f"\n[TIMEOUT] Estourou para o pacote {num_pacote}! Retransmitindo.")
+            pacote = pacotes_a_enviar[num_pacote]
+            cliente_socket.sendall(pacote)
+            tempos_envio[num_pacote] = time.time()
+
+def monitor_de_timeout_SR():
+    while base < total_pacotes:
+        with lock:
+            agora = time.time()
+            for i in range(base, next_seq_num):
+                if status_pacotes.get(i) == 'enviado':
+                    if agora - tempos_envio.get(i, agora) > TIMEOUT:
+                        retransmitir_SR(i)
+        time.sleep(0.1)
+
+def receber_acks_SR(socket: socket.socket):
+    global base, status_pacotes
+    
+    while base < total_pacotes:
+        dados_recebidos = socket.recv(1024).decode('utf-8')
+        if not dados_recebidos: break
+
+        acks_agrupados = dados_recebidos.split('ACK_')
+
+        for ack_str in acks_agrupados:
+            if not ack_str: continue
+            
+            ack_num = int(ack_str.strip())
+            print(f"[SERVER] Servidor confirmou o pacote Nº {ack_num}.")
+
+            with lock:
+                if base <= ack_num < next_seq_num and status_pacotes.get(ack_num) == 'enviado':
+                    
+                    status_pacotes[ack_num] = 'acked'
+                    print(f"[CLIENT] Pacote {ack_num} marcado como confirmado.")
+
+                    if ack_num == base:
+                        while status_pacotes.get(base) == 'acked':
+                            base += 1
+                        print(f"[CLIENT] Janela deslizou. Nova base = {base}.\n")
+
+def enviar_mensagem_SR(socket: socket.socket, mensagem: str):
+    global next_seq_num, base, pacotes_a_enviar, total_pacotes, status_pacotes, tempos_envio
+    
+    cargas_uteis = []
+    for i in range(0, len(mensagem), TAMANHO_MAX_PACOTE):
+        cargas_uteis.append(mensagem[i:i+TAMANHO_MAX_PACOTE])
+    
+    total_pacotes = len(cargas_uteis)
+    
+    for num_pacote, carga_util in enumerate(cargas_uteis):
+        flag_fim = '1' if (num_pacote == total_pacotes - 1) else '0'
+        checksum = calcular_checksum(carga_util)
+        pacote = f"{num_pacote}[.]{checksum}[.]{flag_fim}[.]{carga_util}|||".encode('utf-8')
+        pacotes_a_enviar.append(pacote)
+    
+    print(f"\n> [CLIENT] Mensagem dividida em {total_pacotes} pacotes.\n")
+
+    ack_thread = threading.Thread(target=receber_acks_SR, args=(socket,), daemon=True)
+    ack_thread.start()
+    
+    timeout_thread = threading.Thread(target=monitor_de_timeout_SR, daemon=True)
+    timeout_thread.start()
+
+    while base < total_pacotes:
+        with lock:
+            while next_seq_num < base + window_size and next_seq_num < total_pacotes:
+                pacote_a_enviar = pacotes_a_enviar[next_seq_num]
+                socket.sendall(pacote_a_enviar)
+                
+                status_pacotes[next_seq_num] = 'enviado'
+                tempos_envio[next_seq_num] = time.time()
+                
+                print(f"> Pacote Nº {next_seq_num} enviado.\n")
+                next_seq_num += 1
         time.sleep(0.05)
     
     print(f"\n[CLIENT] Transmissão concluída. Todos os pacotes foram confirmados.")
@@ -154,7 +218,7 @@ def iniciar_cliente():
         window_size = int(handshake_confirmacao.split('=')[1])
 
         print(f"\n[SERVER] Resposta do Servidor: {handshake_confirmacao.split("[.]")[0]}")
-        print(f"[CLIENT] Tamanho da janela definido pelo servidor: {window_size}\n")
+        print(f"[CLIENT] Tamanho da janela definido pelo servidor: {window_size}")
 
         while True:
             mensagem_original = input(f"\n[CLIENT] Digite a mensagem a ser enviada (limite de {tamanho_maximo_mensagem} caracteres): ")
@@ -163,14 +227,11 @@ def iniciar_cliente():
 
         if protocolo_operacao == "GBN":
             enviar_mensagem_GBN(cliente_socket, mensagem_original)
-        #elif protocolo_operacao == "SR":
-        #   enviar_mensagem_SR(conexao_cliente)
+        elif protocolo_operacao == "SR":
+           enviar_mensagem_SR(cliente_socket, mensagem_original)
 
     except ConnectionRefusedError:
         print("[CLIENT] Não foi possível conectar")
-
-    except Exception as e:
-        print(f"\nErro: {e}")
         
     finally:
         cliente_socket.close()
