@@ -1,11 +1,16 @@
 import socket
 import threading
 import time
+import base64
+from cryptography.fernet import Fernet
 
 HOST = "127.0.0.1"
 PORT = 7070
 TAMANHO_MAX_PACOTE = 4
 TIMEOUT = 1
+KEY = b'wA3xQc1V1L-i6pGs_8zNYRz1lO_pfg2f8a4fP9lJj0s='
+
+cipher_suite = Fernet(KEY)
 
 base = 0
 next_seq_num = 0
@@ -82,8 +87,12 @@ def enviar_mensagem_GBN(socket: socket.socket, mensagem: str):
     
     for num_pacote, carga_util in enumerate(cargas_uteis):
         flag_fim = '1' if (num_pacote == total_pacotes - 1) else '0'
-        checksum = calcular_checksum(carga_util)
-        pacote = f"{num_pacote}[.]{checksum}[.]{flag_fim}[.]{carga_util}|||".encode('utf-8')
+        
+        carga_util_encrypted = cipher_suite.encrypt(carga_util.encode('utf-8'))
+        carga_util_b64 = base64.b64encode(carga_util_encrypted).decode('utf-8')
+        checksum = calcular_checksum(carga_util_b64)
+
+        pacote = f"{num_pacote}[.]{checksum}[.]{flag_fim}[.]{carga_util_b64}|||".encode('utf-8')
         pacotes_a_enviar.append(pacote)
     
     print(f"\n[CLIENT] Mensagem dividida em {total_pacotes} pacotes.")
@@ -163,11 +172,15 @@ def enviar_mensagem_SR(socket: socket.socket, mensagem: str):
     
     for num_pacote, carga_util in enumerate(cargas_uteis):
         flag_fim = '1' if (num_pacote == total_pacotes - 1) else '0'
-        checksum = calcular_checksum(carga_util)
-        pacote = f"{num_pacote}[.]{checksum}[.]{flag_fim}[.]{carga_util}|||".encode('utf-8')
+
+        carga_util_encrypted = cipher_suite.encrypt(carga_util.encode('utf-8'))
+        carga_util_b64 = base64.b64encode(carga_util_encrypted).decode('utf-8')
+        checksum = calcular_checksum(carga_util_b64)
+
+        pacote = f"{num_pacote}[.]{checksum}[.]{flag_fim}[.]{carga_util_b64}|||".encode('utf-8')
         pacotes_a_enviar.append(pacote)
     
-    print(f"\n> [CLIENT] Mensagem dividida em {total_pacotes} pacotes.\n")
+    print(f"\n[CLIENT] Mensagem dividida em {total_pacotes} pacotes.\n")
 
     ack_thread = threading.Thread(target=receber_acks_SR, args=(socket,), daemon=True)
     ack_thread.start()
@@ -217,8 +230,12 @@ def iniciar_cliente():
         handshake_confirmacao = cliente_socket.recv(1024).decode('utf-8')
         window_size = int(handshake_confirmacao.split('=')[1])
 
-        print(f"\n[SERVER] Resposta do Servidor: {handshake_confirmacao.split("[.]")[0]}")
-        print(f"[CLIENT] Tamanho da janela definido pelo servidor: {window_size}")
+        print("\n" + "="*50)
+        print("HANDSHAKE RECEBIDO".center(50))
+        print("="*50)
+        print(f"  - Resposta do Servidor: {handshake_confirmacao.split("[.]")[0]}")
+        print(f"  - Tamanho da janela definido pelo servidor: {window_size}")
+        print("="*50)
 
         while True:
             mensagem_original = input(f"\n[CLIENT] Digite a mensagem a ser enviada (limite de {tamanho_maximo_mensagem} caracteres): ")

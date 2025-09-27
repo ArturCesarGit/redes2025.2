@@ -1,8 +1,13 @@
 import socket
+import base64
+from cryptography.fernet import Fernet
 
 HOST = "127.0.0.1" 
 PORT = 7070
 WINDOW_SIZE = 5
+KEY = b'wA3xQc1V1L-i6pGs_8zNYRz1lO_pfg2f8a4fP9lJj0s='
+
+cipher_suite = Fernet(KEY)
 
 def calcular_checksum(dados: str) -> int:
     MOD = 2**32
@@ -37,17 +42,24 @@ def processar_mensagens_GBN(conexao_cliente: socket.socket):
             num_pacote = int(partes[0])
             checksum_recebido = int(partes[1])
             flag_fim = partes[2]
-            carga_util = partes[3]
+            carga_util_b64 = partes[3]
 
             print(f"> Pacote Nº {num_pacote} recebido:")
             print(f"  - Checksum Recebido: {checksum_recebido}")
             print(f"  - Flag de Fim: {flag_fim}")
-            print(f"  - Carga Util: '{carga_util}'")
+            print(f"  - Carga Util Criptografada (Base64): '{carga_util_b64[:20]}...'")
 
-            checksum_calculado = calcular_checksum(carga_util)
+            checksum_calculado = calcular_checksum(carga_util_b64 )
 
             if (num_pacote == num_sequencia_esperado) and (checksum_calculado == checksum_recebido):
-                print(f"\n[SERVER] Pacote {num_pacote} OK. Enviando ACK_{num_pacote}.\n")
+                carga_util_encrypted = base64.b64decode(carga_util_b64.encode('utf-8'))
+                carga_util_decrypted_bytes = cipher_suite.decrypt(carga_util_encrypted)
+                carga_util = carga_util_decrypted_bytes.decode('utf-8')
+
+                print(f"\n[SERVER] Pacote {num_pacote} OK.")
+                print(f"  > Carga Útil Descriptografada: '{carga_util}'")
+                print(f"  > [SERVER] Enviando ACK_{num_pacote}.\n")
+
                 mensagem_completa += carga_util
                 conexao_cliente.sendall(f"ACK_{num_pacote}".encode('utf-8'))
                 num_sequencia_esperado += 1
@@ -100,20 +112,27 @@ def processar_mensagens_SR(conexao_cliente: socket.socket):
             num_pacote = int(partes[0])
             checksum_recebido = int(partes[1])
             flag_fim = partes[2]
-            carga_util = partes[3]
+            carga_util_b64 = partes[3]
 
             print(f"> Pacote Nº {num_pacote} recebido:")
             print(f"  - Checksum Recebido: {checksum_recebido}")
             print(f"  - Flag de Fim: {flag_fim}")
-            print(f"  - Carga Util: '{carga_util}'\n")
+            print(f"  - Carga Util Criptografada (Base64): '{carga_util_b64[:20]}...'")
 
-            checksum_calculado = calcular_checksum(carga_util)
+            checksum_calculado = calcular_checksum(carga_util_b64)
+
             if checksum_calculado != checksum_recebido:
                 print(f"[SERVER] ERRO: Checksum inválido para o pacote {num_pacote}. Pacote descartado.\n")
                 continue
 
+            carga_util_encrypted = base64.b64decode(carga_util_b64.encode('utf-8'))
+            carga_util_decrypted_bytes = cipher_suite.decrypt(carga_util_encrypted)
+            carga_util = carga_util_decrypted_bytes.decode('utf-8')
+            
             if rcv_base - WINDOW_SIZE_SR <= num_pacote < rcv_base + WINDOW_SIZE_SR:
-                print(f"[SERVER] Pacote {num_pacote} OK. Enviando ACK_{num_pacote}.")
+                print(f"\n[SERVER] Pacote {num_pacote} OK.")
+                print(f"  > Carga Útil Descriptografada: '{carga_util}'")
+                print(f"  > [SERVER] Enviando ACK_{num_pacote}.\n")
                 conexao_cliente.sendall(f"ACK_{num_pacote}".encode('utf-8'))
 
             if rcv_base <= num_pacote < rcv_base + WINDOW_SIZE_SR:
