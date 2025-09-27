@@ -2,6 +2,7 @@ import socket
 import threading
 import time
 import base64
+import random
 from cryptography.fernet import Fernet
 
 HOST = "127.0.0.1"
@@ -29,6 +30,21 @@ def calcular_checksum(dados: str) -> int:
     for i, c in enumerate(dados):
         soma = (soma + (i + 1) * ord(c)) % MOD
     return soma
+
+def corromper_pacote(pacote_bytes: bytes) -> bytes:
+    try:
+        pacote_str = pacote_bytes.decode('utf-8')
+        pacote_sem_delimitador = pacote_str.replace("|||", "")
+        partes = pacote_sem_delimitador.split('[.]')
+        
+        checksum_original = int(partes[1])
+        checksum_corrompido = checksum_original + 7070
+        partes[1] = str(checksum_corrompido)
+        
+        novo_pacote_str = "[.]".join(partes) + "|||"
+        return novo_pacote_str.encode('utf-8')
+    except (UnicodeDecodeError, IndexError, ValueError):
+        return pacote_bytes
 
 def iniciar_timer_GBN():
     global timer
@@ -76,7 +92,7 @@ def receber_acks_GBN(socket: socket.socket):
                     print(f"[CLIENT] Janela deslizou. Nova base = {base}. Reiniciando timer.")
                     iniciar_timer_GBN() 
 
-def enviar_mensagem_GBN(socket: socket.socket, mensagem: str):
+def enviar_mensagem_GBN(socket: socket.socket, mensagem: str, modo_erro: int, chance_erro: int):
     global next_seq_num, base, pacotes_a_enviar, total_pacotes
     
     cargas_uteis = []
@@ -104,9 +120,23 @@ def enviar_mensagem_GBN(socket: socket.socket, mensagem: str):
         with lock:
             while next_seq_num < base + window_size and next_seq_num < total_pacotes:
                 pacote_a_enviar = pacotes_a_enviar[next_seq_num]
+
+                deve_falhar = (modo_erro > 0) and (random.randint(1, 100) <= chance_erro)
+                if deve_falhar:
+                    if modo_erro == 1: # Simular Perda
+                        print(f"\n> Pacote Nº {next_seq_num} PERDIDO.")
+                        if base == next_seq_num:
+                            iniciar_timer_GBN()
+                        next_seq_num += 1
+                        continue
+                    
+                    elif modo_erro == 2: # Simular Corrupção
+                        print(f"\n> Pacote Nº {next_seq_num} CORROMPIDO.")
+                        pacote_a_enviar = corromper_pacote(pacote_a_enviar)
                 
                 socket.sendall(pacote_a_enviar)
-                print(f"\n> Pacote Nº {next_seq_num} enviado.")
+                if not deve_falhar:
+                    print(f"\n> Pacote Nº {next_seq_num} enviado.")
                 
                 if base == next_seq_num:
                     iniciar_timer_GBN()
@@ -161,7 +191,7 @@ def receber_acks_SR(socket: socket.socket):
                             base += 1
                         print(f"[CLIENT] Janela deslizou. Nova base = {base}.\n")
 
-def enviar_mensagem_SR(socket: socket.socket, mensagem: str):
+def enviar_mensagem_SR(socket: socket.socket, mensagem: str, modo_erro: int, chance_erro: int):
     global next_seq_num, base, pacotes_a_enviar, total_pacotes, status_pacotes, tempos_envio
     
     cargas_uteis = []
@@ -192,12 +222,25 @@ def enviar_mensagem_SR(socket: socket.socket, mensagem: str):
         with lock:
             while next_seq_num < base + window_size and next_seq_num < total_pacotes:
                 pacote_a_enviar = pacotes_a_enviar[next_seq_num]
+
+                deve_falhar = (modo_erro > 0) and (random.randint(1, 100) <= chance_erro)
+                if deve_falhar: 
+                    if modo_erro == 1: # Simular Perda
+                        print(f"\n> Pacote Nº {next_seq_num} PERDIDO.")
+                        status_pacotes[next_seq_num] = 'enviado'
+                        tempos_envio[next_seq_num] = time.time()
+                        next_seq_num += 1
+                        continue
+                    elif modo_erro == 2: # Simular Corrupção
+                        print(f"\n> Pacote Nº {next_seq_num} CORROMPIDO.")
+                        pacote_a_enviar = corromper_pacote(pacote_a_enviar)
+
                 socket.sendall(pacote_a_enviar)
+                if not deve_falhar:
+                    print(f"> Pacote Nº {next_seq_num} enviado.\n")
                 
                 status_pacotes[next_seq_num] = 'enviado'
                 tempos_envio[next_seq_num] = time.time()
-                
-                print(f"> Pacote Nº {next_seq_num} enviado.\n")
                 next_seq_num += 1
         time.sleep(0.05)
     
@@ -214,13 +257,27 @@ def iniciar_cliente():
 
         while True:
             protocolo_operacao = input("[CLIENT] Digite o protocolo (GBN ou SR): ").upper()
-            if protocolo_operacao in ["GBN", "SR"]:
-                break
+            if protocolo_operacao in ["GBN", "SR"]: break
 
         while True:
             tamanho_maximo_mensagem = int(input("[CLIENT] Digite o tamanho máximo do texto (min. 30): "))
-            if tamanho_maximo_mensagem >= 30:
-                break
+            if tamanho_maximo_mensagem >= 30: break
+
+        print("[CLIENT] Escolha um modo de simulação de erro:")
+        print("- 0: Sem erro")
+        print("- 1: Perder pacotes aleatoriamente")
+        print("- 2: Corromper checksums aleatoriamente")
+
+        modo_erro = 0
+        while True:
+            modo_erro = int(input("Digite a opção (0, 1 ou 2): "))
+            if modo_erro in [0, 1, 2]: break
+
+        chance_erro = 0
+        if modo_erro in [1, 2]:
+            while True:
+                chance_erro = int(input(f"[CLIENT] Digite a chance de erros acontecerem: "))
+                if 1 <= chance_erro <= 100: break
 
         handshake_message = f"{protocolo_operacao}[.]{TAMANHO_MAX_PACOTE}[.]{str(tamanho_maximo_mensagem)}".encode('utf-8')
         
@@ -243,9 +300,9 @@ def iniciar_cliente():
                 break 
 
         if protocolo_operacao == "GBN":
-            enviar_mensagem_GBN(cliente_socket, mensagem_original)
+            enviar_mensagem_GBN(cliente_socket, mensagem_original, modo_erro, chance_erro)
         elif protocolo_operacao == "SR":
-           enviar_mensagem_SR(cliente_socket, mensagem_original)
+           enviar_mensagem_SR(cliente_socket, mensagem_original, modo_erro, chance_erro)
 
     except ConnectionRefusedError:
         print("[CLIENT] Não foi possível conectar")

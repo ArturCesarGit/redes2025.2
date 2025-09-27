@@ -47,7 +47,7 @@ def processar_mensagens_GBN(conexao_cliente: socket.socket):
             print(f"> Pacote Nº {num_pacote} recebido:")
             print(f"  - Checksum Recebido: {checksum_recebido}")
             print(f"  - Flag de Fim: {flag_fim}")
-            print(f"  - Carga Util Criptografada (Base64): '{carga_util_b64[:20]}...'")
+            print(f"  - Carga Util Criptografada (Base64): '{carga_util_b64[:25]}...'")
 
             checksum_calculado = calcular_checksum(carga_util_b64 )
 
@@ -71,13 +71,13 @@ def processar_mensagens_GBN(conexao_cliente: socket.socket):
             
             else:
                 if checksum_calculado != checksum_recebido:
-                    print(f"[SERVER] ERRO: Checksum inválido para o pacote {num_pacote}. Esperado: {checksum_calculado}, Recebido: {checksum_recebido}.")
+                    print(f"\n[SERVER] ERRO: Checksum inválido para o pacote {num_pacote}. Esperado: {checksum_calculado}, Recebido: {checksum_recebido}.")
                 else:
-                    print(f"[SERVER] ERRO: Pacote fora de ordem. Esperado: {num_sequencia_esperado}, Recebido: {num_pacote}.")
+                    print(f"\n[SERVER] ERRO: Pacote fora de ordem. Esperado: {num_sequencia_esperado}, Recebido: {num_pacote}.")
 
                 ack_anterior = num_sequencia_esperado - 1
                 if ack_anterior >= 0:
-                    print(f"[SERVER] Descartando pacote {num_pacote} e reenviando ACK_{ack_anterior}.")
+                    print(f"[SERVER] Descartando pacote {num_pacote} e reenviando ACK_{ack_anterior}.\n")
                     conexao_cliente.sendall(f"ACK_{ack_anterior}".encode('utf-8'))
                 else:
                     print(f"[SERVER] Descartando pacote {num_pacote}.")
@@ -117,7 +117,7 @@ def processar_mensagens_SR(conexao_cliente: socket.socket):
             print(f"> Pacote Nº {num_pacote} recebido:")
             print(f"  - Checksum Recebido: {checksum_recebido}")
             print(f"  - Flag de Fim: {flag_fim}")
-            print(f"  - Carga Util Criptografada (Base64): '{carga_util_b64[:20]}...'")
+            print(f"  - Carga Util Criptografada (Base64): '{carga_util_b64[:25]}...'")
 
             checksum_calculado = calcular_checksum(carga_util_b64)
 
