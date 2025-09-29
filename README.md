@@ -2,7 +2,11 @@
 
 Este projeto consiste em uma aplicação cliente-servidor desenvolvida em Python que simula a transferência de dados confiável sobre uma camada de transporte não confiável, utilizando os protocolos de janela deslizante **Go-Back-N (GBN)** e **Selective Repeat (SR)**.
 
-A aplicação também implementa funcionalidades adicionais como **criptografia de ponta a ponta** para a carga útil dos pacotes e **verificação de integridade** através de checksum.
+## 🗎 Documentação
+
+- **Relatório Técnico:** [Acesse o documento](https://docs.google.com/document/d/1N0a2k7mfnknBgTIUFBx8hmZjhTDQfu6pXCbGpnElUZ4/edit?tab=t.0)
+
+- **Manual de Instrução:** [Acesse o documento](https://docs.google.com/document/d/16vP39sTfF3wk_Hnjguc-9Pl-8t--vxH1pOAlKjPg7qA/edit?tab=t.0#heading=h.gxebh8sb5naq)
 
 ## 🚀 Funcionalidades
 
