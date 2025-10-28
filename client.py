@@ -87,7 +87,7 @@ def receber_acks_GBN(socket: socket.socket):
                 if base == next_seq_num:
                     if timer:
                         timer.cancel()
-                    print(f"[CLIENT] Janela limpa. Base = {base}. Timer parado.")
+                    print(f"[CLIENT] Janela limpa. Base = {base}. Timer parado.\n")
                 else:
                     print(f"[CLIENT] Janela deslizou. Nova base = {base}. Reiniciando timer.")
                     iniciar_timer_GBN() 
@@ -124,19 +124,19 @@ def enviar_mensagem_GBN(socket: socket.socket, mensagem: str, modo_erro: int, ch
                 deve_falhar = (modo_erro > 0) and (random.randint(1, 100) <= chance_erro)
                 if deve_falhar:
                     if modo_erro == 1: # Simular Perda
-                        print(f"\n> Pacote Nº {next_seq_num} PERDIDO.")
+                        print(f"> Pacote Nº {next_seq_num} PERDIDO.")
                         if base == next_seq_num:
                             iniciar_timer_GBN()
                         next_seq_num += 1
                         continue
                     
                     elif modo_erro == 2: # Simular Corrupção
-                        print(f"\n> Pacote Nº {next_seq_num} CORROMPIDO.")
+                        print(f"> Pacote Nº {next_seq_num} CORROMPIDO.")
                         pacote_a_enviar = corromper_pacote(pacote_a_enviar)
                 
                 socket.sendall(pacote_a_enviar)
                 if not deve_falhar:
-                    print(f"\n> Pacote Nº {next_seq_num} enviado.")
+                    print(f"> Pacote Nº {next_seq_num} ENVIADO.")
                 
                 if base == next_seq_num:
                     iniciar_timer_GBN()
@@ -226,18 +226,18 @@ def enviar_mensagem_SR(socket: socket.socket, mensagem: str, modo_erro: int, cha
                 deve_falhar = (modo_erro > 0) and (random.randint(1, 100) <= chance_erro)
                 if deve_falhar: 
                     if modo_erro == 1: # Simular Perda
-                        print(f"\n> Pacote Nº {next_seq_num} PERDIDO.")
+                        print(f"> Pacote Nº {next_seq_num} PERDIDO.")
                         status_pacotes[next_seq_num] = 'enviado'
                         tempos_envio[next_seq_num] = time.time()
                         next_seq_num += 1
                         continue
                     elif modo_erro == 2: # Simular Corrupção
-                        print(f"\n> Pacote Nº {next_seq_num} CORROMPIDO.")
+                        print(f"> Pacote Nº {next_seq_num} CORROMPIDO.")
                         pacote_a_enviar = corromper_pacote(pacote_a_enviar)
 
                 socket.sendall(pacote_a_enviar)
                 if not deve_falhar:
-                    print(f"\n> Pacote Nº {next_seq_num} enviado.")
+                    print(f"> Pacote Nº {next_seq_num} ENVIADO.")
                 
                 status_pacotes[next_seq_num] = 'enviado'
                 tempos_envio[next_seq_num] = time.time()

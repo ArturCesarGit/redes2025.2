@@ -56,13 +56,14 @@ def processar_mensagens_GBN(conexao_cliente: socket.socket):
                 carga_util_decrypted_bytes = cipher_suite.decrypt(carga_util_encrypted)
                 carga_util = carga_util_decrypted_bytes.decode('utf-8')
 
-                print(f"\n[SERVER] Pacote {num_pacote} OK.")
-                print(f"  > Carga Útil Descriptografada: '{carga_util}'")
-                print(f"  > [SERVER] Enviando ACK_{num_pacote}.\n")
-
                 mensagem_completa += carga_util
-                conexao_cliente.sendall(f"ACK_{num_pacote}".encode('utf-8'))
+                print(f"\n[SERVER] Pacote {num_pacote} OK.")
+
                 num_sequencia_esperado += 1
+
+                ack_cumulativo = num_sequencia_esperado - 1
+                print(f"[SERVER] Enviando ACK cumulativo -> ACK_{ack_cumulativo}\n")
+                conexao_cliente.sendall(f"ACK_{ack_cumulativo}".encode('utf-8'))
                 
                 if flag_fim == '1':
                     print("[SERVER] Flag de fim recebida. Transmissão concluída.")
@@ -71,16 +72,16 @@ def processar_mensagens_GBN(conexao_cliente: socket.socket):
             
             else:
                 if checksum_calculado != checksum_recebido:
-                    print(f"\n[SERVER] ERRO: Checksum inválido para o pacote {num_pacote}. Esperado: {checksum_calculado}, Recebido: {checksum_recebido}.")
+                    print(f"\n[SERVER] ERRO: Checksum inválido para o pacote {num_pacote}. Esperado: ({checksum_calculado}), Recebido: ({checksum_recebido})")
                 else:
-                    print(f"\n[SERVER] ERRO: Pacote fora de ordem. Esperado: {num_sequencia_esperado}, Recebido: {num_pacote}.")
+                    print(f"\n[SERVER] ERRO: Pacote fora de ordem. Esperado: ({num_sequencia_esperado}), Recebido: ({num_pacote})")
 
                 ack_anterior = num_sequencia_esperado - 1
                 if ack_anterior >= 0:
                     print(f"[SERVER] Descartando pacote {num_pacote} e reenviando ACK_{ack_anterior}.\n")
                     conexao_cliente.sendall(f"ACK_{ack_anterior}".encode('utf-8'))
                 else:
-                    print(f"[SERVER] Descartando pacote {num_pacote}.")
+                    print(f"[SERVER] Descartando pacote {num_pacote}.\n")
     
     print(f"\n[SERVER] MENSAGEM COMPLETA (GBN): {mensagem_completa}")
 
