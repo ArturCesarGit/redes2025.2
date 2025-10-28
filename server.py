@@ -132,14 +132,12 @@ def processar_mensagens_SR(conexao_cliente: socket.socket):
             
             if rcv_base - WINDOW_SIZE_SR <= num_pacote < rcv_base + WINDOW_SIZE_SR:
                 print(f"\n[SERVER] Pacote {num_pacote} OK.")
-                print(f"  > Carga Útil Descriptografada: '{carga_util}'")
-                print(f"  > [SERVER] Enviando ACK_{num_pacote}.\n")
+                print(f"[SERVER] Enviando ACK_{num_pacote}.")
                 conexao_cliente.sendall(f"ACK_{num_pacote}".encode('utf-8'))
 
             if rcv_base <= num_pacote < rcv_base + WINDOW_SIZE_SR:
                 if num_pacote not in pacotes_em_buffer:
                     pacotes_em_buffer[num_pacote] = (carga_util, flag_fim == '1')
-                    print(f"\n[SERVER] Pacote {num_pacote} armazenado no buffer.")
 
             while rcv_base in pacotes_em_buffer:
                 dados, eh_ultimo = pacotes_em_buffer.pop(rcv_base)
