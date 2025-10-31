@@ -78,7 +78,7 @@ def receber_acks_GBN(socket: socket.socket):
             if not ack_str: continue
             
             ack_num = int(ack_str)
-            print(f"\n[CLIENT] Servidor confirmou o pacote Nº {ack_num}.")
+            print(f"\n[CLIENT] Servidor confirmou o pacote Nº {ack_num}, ACK cumulativo = {ack_num}")
             
             with lock:
                 if ack_num + 1 > base:
